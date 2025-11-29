@@ -443,14 +443,20 @@ async function convertDocument(inputPath: string, outputPath: string, sourceForm
     await writeFile(outputPath, pdfBytes);
     
   } else if (sourceFormat === 'pdf' && targetFormat === 'txt') {
-    // PDF to TXT - basic extraction
-    // Note: For production, use pdf-parse or similar
+    // PDF to TXT using pdf-parse
     job.progress = 50;
+    const pdfParse = (await import('pdf-parse')).default;
     const pdfBuffer = await readFile(inputPath);
     
-    // Simple text extraction (basic implementation)
-    const text = extractTextFromPDF(pdfBuffer);
-    await writeFile(outputPath, text);
+    try {
+      const data = await pdfParse(pdfBuffer);
+      job.progress = 80;
+      await writeFile(outputPath, data.text || 'No text found in PDF');
+    } catch (e) {
+      // Fallback to basic extraction
+      const text = extractTextFromPDF(pdfBuffer);
+      await writeFile(outputPath, text);
+    }
     
   } else if (sourceFormat === 'docx' && targetFormat === 'txt') {
     // DOCX to TXT using mammoth

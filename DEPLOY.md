@@ -1,81 +1,62 @@
-# FileForge - Инструкция по деплою
+# FileForge - Полный гайд по деплою
 
-## Деплой на Render.com (бесплатно)
+## Шаг 1: Создание репозитория на GitHub
 
-### 1. Подготовка
-1. Создай аккаунт на [render.com](https://render.com)
-2. Подключи свой GitHub репозиторий
+### 1.1 Создай новый репозиторий
+1. Открой https://github.com/new
+2. Название: `fileforge` (или любое другое)
+3. Описание: `Universal File Converter`
+4. Выбери Public или Private
+5. НЕ добавляй README, .gitignore (они уже есть)
+6. Нажми Create repository
 
-### 2. Деплой API
-1. В Render Dashboard нажми "New" → "Web Service"
-2. Выбери свой репозиторий
-3. Настройки:
-   - **Name**: `fileforge-api`
-   - **Region**: Frankfurt (или ближайший)
-   - **Root Directory**: `backend/api`
-   - **Runtime**: Docker
-   - **Plan**: Free
-
-4. Environment Variables:
-   - `NODE_ENV` = `production`
-   - `PORT` = `10000`
-
-5. Нажми "Create Web Service"
-
-### 3. После деплоя
-После успешного деплоя ты получишь URL вида:
-```
-https://fileforge-api.onrender.com
+### 1.2 Подключи и запуш
+```bash
+git remote add origin https://github.com/YOUR_USERNAME/fileforge.git
+git branch -M main
+git push -u origin main
 ```
 
-### 4. Обновление Flutter приложения
-Открой `mobile-app/lib/services/api_service.dart` и обнови:
+## Шаг 2: Деплой на Render.com
 
+### 2.1 Регистрация
+1. Открой https://render.com
+2. Войди через GitHub
+
+### 2.2 Создание Web Service
+1. New + -> Web Service
+2. Build and deploy from Git repository
+3. Подключи GitHub и выбери репозиторий fileforge
+
+### 2.3 Настройка
+- Name: fileforge-api
+- Region: Frankfurt
+- Branch: main
+- Root Directory: backend/api
+- Runtime: Docker
+- Instance Type: Free
+
+### 2.4 Environment Variables
+- NODE_ENV = production
+- PORT = 10000
+
+### 2.5 Запуск
+Нажми Create Web Service и подожди 5-10 минут.
+URL будет: https://fileforge-api.onrender.com
+
+## Шаг 3: Настройка Flutter
+
+### 3.1 Обнови URL
+В mobile-app/lib/services/api_service.dart:
 ```dart
-class ApiConfig {
-  // Замени на свой URL с Render
-  static const String productionUrl = 'https://fileforge-api.onrender.com';
-  
-  // Включи production режим
-  static const bool isProduction = true;
-}
+static const String productionUrl = 'https://fileforge-api.onrender.com';
+static const bool isProduction = true;
 ```
 
-### 5. Сборка APK
+### 3.2 Сборка APK
 ```bash
 cd mobile-app
 flutter build apk --release
 ```
 
-APK будет в: `build/app/outputs/flutter-apk/app-release.apk`
-
----
-
-## Альтернативы (тоже бесплатно)
-
-### Railway.app
-1. Подключи GitHub
-2. Выбери `backend/api` как root
-3. Railway автоматически определит Dockerfile
-
-### Fly.io
-```bash
-cd backend/api
-flyctl launch
-flyctl deploy
-```
-
----
-
-## Ограничения бесплатного плана Render
-
-- Сервис "засыпает" после 15 минут неактивности
-- Первый запрос после сна занимает ~30 секунд
-- 750 часов в месяц (достаточно для одного сервиса 24/7)
-- Файлы удаляются при перезапуске (in-memory storage)
-
-## Для production
-Для реального использования рекомендуется:
-- Использовать платный план
-- Добавить Redis для очередей
-- Добавить S3/MinIO для хранения файлов
+APK: mobile-app/build/app/outputs/flutter-apk/app-release.apk

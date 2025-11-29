@@ -24,17 +24,24 @@ class ApiService {
   factory ApiService() => _instance;
   ApiService._internal();
 
-  // Check server health
+  // Check server health (longer timeout for Render cold start)
   Future<bool> checkHealth() async {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/health'),
-      ).timeout(const Duration(seconds: 5));
+      ).timeout(const Duration(seconds: 60)); // Render needs time to wake up
       return response.statusCode == 200;
     } catch (e) {
       print('Health check failed: $e');
       return false;
     }
+  }
+
+  // Wake up server (call before operations)
+  Future<void> wakeUpServer() async {
+    try {
+      await http.get(Uri.parse('$baseUrl/health')).timeout(const Duration(seconds: 90));
+    } catch (_) {}
   }
 
   // Get available formats

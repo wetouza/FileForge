@@ -53,11 +53,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late Animation<double> _fadeAnimation;
   bool _isLoading = false;
   bool _serverOnline = false;
+  bool _checkingServer = true;
+  String _serverStatus = 'Проверка сервера...';
 
   @override
   void initState() {
     super.initState();
-    // Плавное свечение вместо пульсации
     _glowController = AnimationController(
       duration: const Duration(milliseconds: 2500),
       vsync: this,
@@ -68,7 +69,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       vsync: this,
     )..forward();
 
-    // Анимация свечения (opacity тени)
     _glowAnimation = Tween<double>(begin: 0.15, end: 0.4).animate(
       CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
     );
@@ -81,8 +81,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _checkServer() async {
+    if (mounted) setState(() {
+      _checkingServer = true;
+      _serverStatus = 'Пробуждение сервера...';
+    });
+    
     final online = await ApiService().checkHealth();
-    if (mounted) setState(() => _serverOnline = online);
+    
+    if (mounted) setState(() {
+      _serverOnline = online;
+      _checkingServer = false;
+      _serverStatus = online ? 'Сервер онлайн' : 'Нажмите для повтора';
+    });
   }
 
   @override
@@ -168,36 +178,39 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildServerStatus() {
+    final color = _checkingServer 
+        ? const Color(0xFFF59E0B) 
+        : (_serverOnline ? const Color(0xFF10B981) : const Color(0xFFEF4444));
+    
     return GestureDetector(
-      onTap: _checkServer,
-      child: Container(
+      onTap: _checkingServer ? null : _checkServer,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: (_serverOnline ? const Color(0xFF10B981) : const Color(0xFFEF4444)).withOpacity(0.15),
+          color: color.withOpacity(0.15),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: (_serverOnline ? const Color(0xFF10B981) : const Color(0xFFEF4444)).withOpacity(0.3),
-          ),
+          border: Border.all(color: color.withOpacity(0.3)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                color: _serverOnline ? const Color(0xFF10B981) : const Color(0xFFEF4444),
-                shape: BoxShape.circle,
+            if (_checkingServer)
+              SizedBox(
+                width: 12,
+                height: 12,
+                child: CircularProgressIndicator(strokeWidth: 2, color: color),
+              )
+            else
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
               ),
-            ),
             const SizedBox(width: 10),
             Text(
-              _serverOnline ? 'Сервер онлайн' : 'Сервер недоступен',
-              style: TextStyle(
-                color: _serverOnline ? const Color(0xFF10B981) : const Color(0xFFEF4444),
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
+              _serverStatus,
+              style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 13),
             ),
             const SizedBox(width: 8),
             Icon(
@@ -975,88 +988,106 @@ class _ConvertScreenState extends State<ConvertScreen> {
     });
   }
 
-  Future<void> _downloadFile() async {
-    if (_jobId == null) return;
+  bool _isDownloading = false;
 
-    // Show loading
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Row(
-          children: [
-            SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
-            SizedBox(width: 12),
-            Text('Скачивание...'),
-          ],
-        ),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 30),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        backgroundColor: const Color(0xFF334155),
+  Future<void> _downloadFile() async {
+    if (_jobId == null || _isDownloading) return;
+
+    setState(() => _isDownloading = true);
+
+    // Show beautiful download dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _DownloadDialog(
+        fileName: _jobStatus?.resultFileName ?? 'converted.$_selectedFormat',
+        onComplete: (path) {
+          Navigator.pop(ctx);
+          setState(() => _isDownloading = false);
+          _showDownloadSuccess(path);
+        },
+        onError: (error) {
+          Navigator.pop(ctx);
+          setState(() => _isDownloading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Ошибка: $error'), backgroundColor: const Color(0xFFEF4444)),
+          );
+        },
+        downloadFuture: _performDownload(),
       ),
     );
-
-    try {
-      final bytes = await _api.downloadFile(_jobId!);
-      if (bytes != null && mounted) {
-        // Try to save to Downloads folder on Android
-        Directory? saveDir;
-        try {
-          // Try external storage Downloads
-          saveDir = Directory('/storage/emulated/0/Download');
-          if (!await saveDir.exists()) {
-            saveDir = await getApplicationDocumentsDirectory();
-          }
-        } catch (_) {
-          saveDir = await getApplicationDocumentsDirectory();
-        }
-        
-        final fileName = _jobStatus?.resultFileName ?? 'converted.$_selectedFormat';
-        final file = File('${saveDir.path}/$fileName');
-        await file.writeAsBytes(bytes);
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).hideCurrentSnackBar();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.check_circle, color: Colors.white, size: 20),
-                      const SizedBox(width: 8),
-                      const Text('Файл сохранён!', style: TextStyle(fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(file.path, style: const TextStyle(fontSize: 11, color: Colors.white70)),
-                ],
-              ),
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              backgroundColor: const Color(0xFF10B981),
-              duration: const Duration(seconds: 4),
-            ),
-          );
-        }
-      } else {
-        throw Exception('Не удалось скачать файл');
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Ошибка: $e'),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            backgroundColor: const Color(0xFFEF4444),
-          ),
-        );
-      }
-    }
   }
+
+  Future<String> _performDownload() async {
+    final bytes = await _api.downloadFile(_jobId!);
+    if (bytes == null) throw Exception('Не удалось скачать');
+    
+    Directory? saveDir;
+    try {
+      saveDir = Directory('/storage/emulated/0/Download');
+      if (!await saveDir.exists()) {
+        saveDir = await getApplicationDocumentsDirectory();
+      }
+    } catch (_) {
+      saveDir = await getApplicationDocumentsDirectory();
+    }
+    
+    final fileName = _jobStatus?.resultFileName ?? 'converted.$_selectedFormat';
+    final file = File('${saveDir.path}/$fileName');
+    await file.writeAsBytes(bytes);
+    return file.path;
+  }
+
+  void _showDownloadSuccess(String path) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [Color(0xFF10B981), Color(0xFF06B6D4)]),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.check_rounded, color: Colors.white, size: 40),
+            ),
+            const SizedBox(height: 20),
+            const Text('Сохранено!', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white)),
+            const SizedBox(height: 8),
+            Text(
+              path.split('/').last,
+              style: const TextStyle(color: Colors.white70, fontSize: 14),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Папка: ${path.contains('Download') ? 'Загрузки' : 'Документы'}',
+              style: const TextStyle(color: Colors.white38, fontSize: 12),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF6366F1),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('Отлично!', style: TextStyle(fontWeight: FontWeight.w600)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+
 
   Future<void> _shareFile() async {
     if (_jobId == null) return;
@@ -1429,6 +1460,135 @@ class _ActionButton extends StatelessWidget {
             Icon(icon, color: color, size: 20),
             const SizedBox(width: 8),
             Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Beautiful Download Dialog with animation
+class _DownloadDialog extends StatefulWidget {
+  final String fileName;
+  final Future<String> downloadFuture;
+  final Function(String) onComplete;
+  final Function(String) onError;
+
+  const _DownloadDialog({
+    required this.fileName,
+    required this.downloadFuture,
+    required this.onComplete,
+    required this.onError,
+  });
+
+  @override
+  State<_DownloadDialog> createState() => _DownloadDialogState();
+}
+
+class _DownloadDialogState extends State<_DownloadDialog> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _rotateAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    )..repeat();
+
+    _scaleAnimation = Tween<double>(begin: 0.95, end: 1.05).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+    
+    _rotateAnimation = Tween<double>(begin: 0, end: 1).animate(_controller);
+
+    _startDownload();
+  }
+
+  void _startDownload() async {
+    try {
+      final path = await widget.downloadFuture;
+      widget.onComplete(path);
+    } catch (e) {
+      widget.onError(e.toString());
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E293B),
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF6366F1).withOpacity(0.3),
+              blurRadius: 30,
+              spreadRadius: -5,
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedBuilder(
+              animation: _controller,
+              builder: (context, child) {
+                return Transform.scale(
+                  scale: _scaleAnimation.value,
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFF6366F1),
+                          Color.lerp(const Color(0xFF6366F1), const Color(0xFF8B5CF6), _rotateAnimation.value)!,
+                        ],
+                      ),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF6366F1).withOpacity(0.5),
+                          blurRadius: 20,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(Icons.download_rounded, color: Colors.white, size: 36),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Скачивание...',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              widget.fileName,
+              style: const TextStyle(color: Colors.white54, fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                backgroundColor: const Color(0xFF334155),
+                valueColor: const AlwaysStoppedAnimation(Color(0xFF6366F1)),
+                minHeight: 6,
+              ),
+            ),
           ],
         ),
       ),
