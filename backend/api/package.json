@@ -1,0 +1,49 @@
+{
+  "name": "fileforge-api",
+  "version": "1.0.0",
+  "description": "FileForge API Server",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/standalone.ts",
+    "build": "tsc",
+    "start": "node dist/standalone.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src --ext .ts"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "multer": "^1.4.5-lts.1",
+    "bullmq": "^5.1.0",
+    "ioredis": "^5.3.2",
+    "@aws-sdk/client-s3": "^3.450.0",
+    "@aws-sdk/s3-request-presigner": "^3.450.0",
+    "ws": "^8.14.2",
+    "uuid": "^9.0.1",
+    "zod": "^3.22.4",
+    "dotenv": "^16.3.1",
+    "winston": "^3.11.0",
+    "sharp": "^0.33.0",
+    "fluent-ffmpeg": "^2.1.2",
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "pdf-lib": "^1.17.1",
+    "mammoth": "^1.6.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/cors": "^2.8.17",
+    "@types/multer": "^1.4.11",
+    "@types/ws": "^8.5.10",
+    "@types/uuid": "^9.0.7",
+    "@types/node": "^20.10.0",
+    "@types/fluent-ffmpeg": "^2.1.24",
+    "typescript": "^5.3.2",
+    "tsx": "^4.6.0",
+    "vitest": "^1.0.0",
+    "eslint": "^8.55.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0"
+  }
+}

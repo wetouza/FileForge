@@ -1,0 +1,16 @@
+# Render.com deployment configuration
+# FileForge API - Standalone mode with FFmpeg
+services:
+  - type: web
+    name: fileforge-api
+    runtime: docker
+    region: frankfurt
+    plan: free
+    rootDir: backend/api
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000

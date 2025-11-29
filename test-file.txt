@@ -1,0 +1,3 @@
+Hello, FileForge!
+This is a test file for conversion.
+Привет, мир!

@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # Backend Tests
+  backend-test:
+    runs-on: ubuntu-latest
+    
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/api/package-lock.json
+      
+      - name: Install API dependencies
+        run: npm ci
+        working-directory: backend/api
+      
+      - name: Build API
+        run: npm run build
+        working-directory: backend/api
+      
+      - name: Run API tests
+        run: npm test
+        working-directory: backend/api
+      
+      - name: Install Worker dependencies
+        run: npm ci
+        working-directory: backend/worker
+      
+      - name: Build Worker
+        run: npm run build
+        working-directory: backend/worker
+
+  # Flutter Build
+  flutter-build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.16.0'
+          channel: 'stable'
+          cache: true
+      
+      - name: Get dependencies
+        run: flutter pub get
+        working-directory: mobile-app
+      
+      - name: Analyze code
+        run: flutter analyze
+        working-directory: mobile-app
+      
+      - name: Run tests
+        run: flutter test
+        working-directory: mobile-app
+      
+      - name: Build APK
+        run: flutter build apk --release
+        working-directory: mobile-app
+      
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk
+          path: mobile-app/build/app/outputs/flutter-apk/app-release.apk
+
+  # Docker Build
+  docker-build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build API image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: backend/api/Dockerfile
+          push: false
+          tags: fileforge-api:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Build Worker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: backend/ffmpeg-layer/Dockerfile
+          push: false
+          tags: fileforge-worker:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

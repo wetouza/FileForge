@@ -1,0 +1,93 @@
+version: '3.8'
+
+services:
+  # API Server
+  api:
+    build:
+      context: ..
+      dockerfile: backend/api/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - REDIS_URL=redis://redis:6379
+      - S3_ENDPOINT=http://minio:9000
+      - S3_ACCESS_KEY=minioadmin
+      - S3_SECRET_KEY=minioadmin
+      - S3_BUCKET=fileforge
+      - JWT_SECRET=dev-secret-change-in-production
+    depends_on:
+      - redis
+      - minio
+    networks:
+      - fileforge
+
+  # Worker (с FFmpeg и другими инструментами)
+  worker:
+    build:
+      context: ..
+      dockerfile: backend/ffmpeg-layer/Dockerfile
+    environment:
+      - NODE_ENV=development
+      - REDIS_URL=redis://redis:6379
+      - S3_ENDPOINT=http://minio:9000
+      - S3_ACCESS_KEY=minioadmin
+      - S3_SECRET_KEY=minioadmin
+      - S3_BUCKET=fileforge
+    depends_on:
+      - redis
+      - minio
+    networks:
+      - fileforge
+    deploy:
+      replicas: 2
+
+  # Redis для очередей
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - fileforge
+
+  # MinIO (S3-совместимое хранилище)
+  minio:
+    image: minio/minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - fileforge
+
+  # Создание bucket при старте
+  minio-init:
+    image: minio/mc
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5;
+      mc alias set myminio http://minio:9000 minioadmin minioadmin;
+      mc mb myminio/fileforge --ignore-existing;
+      mc anonymous set download myminio/fileforge;
+      exit 0;
+      "
+    networks:
+      - fileforge
+
+networks:
+  fileforge:
+    driver: bridge
+
+volumes:
+  redis_data:
+  minio_data:
