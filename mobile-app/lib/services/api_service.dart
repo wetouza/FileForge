@@ -5,14 +5,14 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
 class ApiConfig {
-  // Production URL - замени на свой после деплоя на Render
-  static const String productionUrl = 'https://fileforge-api.onrender.com';
+  // Production URL
+  static const String productionUrl = 'https://fileforge-oafr.onrender.com';
   
   // Local development URL
   static const String localUrl = 'http://localhost:3000';
   
   // Set to true for production, false for local development
-  static const bool isProduction = false;
+  static const bool isProduction = true;
   
   static String get baseUrl => isProduction ? productionUrl : localUrl;
 }
