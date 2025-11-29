@@ -47,9 +47,9 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
-  late AnimationController _pulseController;
+  late AnimationController _glowController;
   late AnimationController _fadeController;
-  late Animation<double> _pulseAnimation;
+  late Animation<double> _glowAnimation;
   late Animation<double> _fadeAnimation;
   bool _isLoading = false;
   bool _serverOnline = false;
@@ -57,8 +57,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _pulseController = AnimationController(
-      duration: const Duration(milliseconds: 1500),
+    // Плавное свечение вместо пульсации
+    _glowController = AnimationController(
+      duration: const Duration(milliseconds: 2500),
       vsync: this,
     )..repeat(reverse: true);
     
@@ -67,8 +68,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       vsync: this,
     )..forward();
 
-    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.08).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    // Анимация свечения (opacity тени)
+    _glowAnimation = Tween<double>(begin: 0.15, end: 0.4).animate(
+      CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
     );
     
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
@@ -85,7 +87,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   @override
   void dispose() {
-    _pulseController.dispose();
+    _glowController.dispose();
     _fadeController.dispose();
     super.dispose();
   }
@@ -305,49 +307,56 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildUploadArea() {
-    return ScaleTransition(
-      scale: _pulseAnimation,
-      child: GestureDetector(
-        onTap: _isLoading ? null : _pickFile,
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1E293B),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: const Color(0xFF334155)),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF6366F1).withOpacity(0.1),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
+    return AnimatedBuilder(
+      animation: _glowAnimation,
+      builder: (context, child) {
+        return GestureDetector(
+          onTap: _isLoading ? null : _pickFile,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: Color.lerp(
+                  const Color(0xFF334155),
+                  const Color(0xFF6366F1),
+                  _glowAnimation.value,
+                )!,
               ),
-            ],
-          ),
-          child: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-                  ),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF6366F1).withOpacity(0.4),
-                      blurRadius: 20,
-                    ),
-                  ],
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF6366F1).withOpacity(_glowAnimation.value),
+                  blurRadius: 24,
+                  spreadRadius: -4,
                 ),
-                child: _isLoading
-                  ? const SizedBox(
-                      width: 32,
-                      height: 32,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
-                    )
-                  : const Icon(Icons.cloud_upload_rounded, size: 32, color: Colors.white),
-              ),
+              ],
+            ),
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                    ),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF6366F1).withOpacity(_glowAnimation.value + 0.2),
+                        blurRadius: 24,
+                      ),
+                    ],
+                  ),
+                  child: _isLoading
+                    ? const SizedBox(
+                        width: 32,
+                        height: 32,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
+                      )
+                    : const Icon(Icons.cloud_upload_rounded, size: 32, color: Colors.white),
+                ),
               const SizedBox(height: 20),
               const Text(
                 'Загрузить файл',
@@ -505,7 +514,7 @@ class _AnimatedIconButtonState extends State<_AnimatedIconButton> {
   }
 }
 
-// Animated Category Icon
+// Animated Category Icon - плавное покачивание
 class _AnimatedCategoryIcon extends StatefulWidget {
   final IconData icon;
   final Color color;
@@ -518,13 +527,21 @@ class _AnimatedCategoryIcon extends StatefulWidget {
 
 class _AnimatedCategoryIconState extends State<_AnimatedCategoryIcon> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  late Animation<double> _animation;
+  late Animation<double> _rotateAnimation;
+  late Animation<double> _glowAnimation;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(duration: const Duration(milliseconds: 1500), vsync: this);
-    _animation = Tween<double>(begin: 0, end: -6).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+    _controller = AnimationController(duration: const Duration(milliseconds: 3000), vsync: this);
+    // Плавное покачивание на 5 градусов
+    _rotateAnimation = Tween<double>(begin: -0.05, end: 0.05).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+    // Плавное свечение
+    _glowAnimation = Tween<double>(begin: 0.15, end: 0.3).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
     Future.delayed(Duration(milliseconds: widget.delayMs), () {
       if (mounted) _controller.repeat(reverse: true);
     });
@@ -539,15 +556,22 @@ class _AnimatedCategoryIconState extends State<_AnimatedCategoryIcon> with Singl
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: _animation,
+      animation: _controller,
       builder: (context, child) {
-        return Transform.translate(
-          offset: Offset(0, _animation.value),
+        return Transform.rotate(
+          angle: _rotateAnimation.value,
           child: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: widget.color.withOpacity(0.15),
+              color: widget.color.withOpacity(_glowAnimation.value),
               borderRadius: BorderRadius.circular(10),
+              boxShadow: [
+                BoxShadow(
+                  color: widget.color.withOpacity(_glowAnimation.value * 0.5),
+                  blurRadius: 8,
+                  spreadRadius: -2,
+                ),
+              ],
             ),
             child: Icon(widget.icon, color: widget.color, size: 18),
           ),
